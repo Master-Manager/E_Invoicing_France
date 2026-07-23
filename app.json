@@ -1,6 +1,6 @@
 {
   "id": "008b2d89-7f5c-49a2-9e2a-e07df24226c4",
-  "name": "DEV",
+  "name": "Electronic Invoicing",
   "publisher": "Default Publisher",
   "version": "1.0.0.0",
   "brief": "",
@@ -16,8 +16,8 @@
   "application": "21.0.0.0",
   "idRanges": [
     {
-      "from": 50100,
-      "to": 50199
+      "from": 70100,
+      "to": 70199
     }
   ],
   "resourceExposurePolicy": {
