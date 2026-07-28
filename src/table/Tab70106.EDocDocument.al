@@ -218,7 +218,27 @@ table 70106 "EDoc Document"
         {
             DecimalPlaces = 2 : 2;
         }
+        field(540; "Allowance Amount"; Decimal)
+        {
+            Caption = 'Allowance Amount';
+            DecimalPlaces = 2 : 2;
+        }
 
+        field(541; "Allowance Reason"; Text[250])
+        {
+            Caption = 'Allowance Reason';
+        }
+
+        field(542; "Allowance VAT Category"; Code[10])
+        {
+            Caption = 'Allowance VAT Category';
+        }
+
+        field(543; "Allowance VAT %"; Decimal)
+        {
+            Caption = 'Allowance VAT %';
+            DecimalPlaces = 0 : 5;
+        }
         //------------------------------------
         // UBL Metadata
         //------------------------------------
@@ -322,6 +342,81 @@ table 70106 "EDoc Document"
             "Object Type" = const(Table),
             "Object ID" = field("Table ID")));
             Editable = false;
+        }
+        //------------------------------------
+        // E-Reporting
+        //------------------------------------
+
+        field(900; "Reporting Flow"; Option)
+        {
+            Caption = 'Reporting Flow';
+            OptionMembers = "","10.1","10.2","10.3","10.4";
+        }
+
+        field(901; "Reporting Role"; Option)
+        {
+            Caption = 'Reporting Role';
+            OptionMembers = "","Seller","Buyer";
+        }
+
+        field(902; "Transaction Category"; Code[10])
+        {
+            Caption = 'Transaction Category';
+            // TLB1 TPS1 TNT1 TMA1
+        }
+
+        field(903; "Tax Due Date Type Code"; Code[10])
+        {
+            Caption = 'Tax Due Date Type';
+        }
+
+        field(904; "Transaction Currency"; Code[10])
+        {
+            Caption = 'Transaction Currency';
+        }
+
+        field(905; "Reporting Date"; Date)
+        {
+            Caption = 'Reporting Date';
+        }
+
+        field(906; "Transaction Count"; Integer)
+        {
+            Caption = 'Transaction Count';
+        }
+
+        field(907; "Correction"; Boolean)
+        {
+            Caption = 'Correction';
+        }
+
+        field(908; "Report ID"; Code[35])
+        {
+        }
+
+        field(909; "Flow Direction"; Option)
+        {
+            OptionMembers = "","Outbound","Inbound";
+        }
+
+        field(910; "Report Type Code"; Code[10])
+        {
+            Caption = 'IN / RE';
+        }
+
+        field(911; "Payment Method Code"; Code[20])
+        {
+        }
+
+        field(912; "Payment Date"; Date)
+        {
+        }
+
+        field(913; "Payment Reference"; Code[50])
+        {
+        }
+        field(914; "Collected Amount"; Decimal)
+        {
         }
     }
 

@@ -38,6 +38,8 @@ codeunit 70113 "EDoc Sovos Invoice Builder"
         BuildPaymentMeans(Xml, EDoc, EDocService);
         BuildPaymentTerms(Xml, EDoc);
 
+        BuildAllowanceCharge(Xml, EDoc);
+
         BuildTaxBuffer(TaxBuffer, EDoc);
         BuildTaxTotal(Xml, EDoc, TaxBuffer);
 
@@ -46,7 +48,7 @@ codeunit 70113 "EDoc Sovos Invoice Builder"
         Lines.SetRange("Document Entry No.", EDoc."Entry No.");
         if Lines.FindSet() then
             repeat
-                BuildInvoiceLine(Xml, Lines);
+                BuildInvoiceLine(Xml, EDoc, Lines);
             until Lines.Next() = 0;
 
         PathStack.RemoveAt(PathStack.Count);
@@ -130,7 +132,7 @@ codeunit 70113 "EDoc Sovos Invoice Builder"
         AddElementWithAttr(Xml, 'cbc:EndpointID', 'schemeID', '0225', EDoc."Supplier Endpoint", 'Supplier Endpoint');
 
         OpenGroup(Xml, 'cac:PartyIdentification');
-        AddElementWithAttr(Xml, 'cbc:ID', 'schemeID', '0009', EDoc."Supplier SIRET", 'Supplier SIRET');
+        AddElementWithAttr(Xml, 'cbc:ID', 'schemeID', '0002', EDoc."Supplier SIREN", 'Supplier SIREN');
         CloseGroup(Xml);
 
         OpenGroup(Xml, 'cac:PartyName');
@@ -170,7 +172,7 @@ codeunit 70113 "EDoc Sovos Invoice Builder"
         AddElementWithAttr(Xml, 'cbc:EndpointID', 'schemeID', '0225', EDoc."Customer Endpoint", 'Customer Endpoint');
 
         OpenGroup(Xml, 'cac:PartyIdentification');
-        AddElementWithAttr(Xml, 'cbc:ID', 'schemeID', '0009', EDoc."Customer SIRET", 'Customer SIRET');
+        AddElementWithAttr(Xml, 'cbc:ID', 'schemeID', '0002', EDoc."Customer SIREN", 'Customer SIREN');
         CloseGroup(Xml);
 
         OpenGroup(Xml, 'cac:PartyName');
@@ -225,6 +227,7 @@ codeunit 70113 "EDoc Sovos Invoice Builder"
     var
         BankAccount: Record "Bank Account";
         HasBankAccount: Boolean;
+        CompanySetup: Record "Company Information";
     begin
         HasBankAccount := (EDocService."Payee Bank Account Code" <> '') and BankAccount.Get(EDocService."Payee Bank Account Code");
 
@@ -237,15 +240,27 @@ codeunit 70113 "EDoc Sovos Invoice Builder"
             AddElement(Xml, 'cbc:PaymentMeansCode', EDoc."Payment Means Code", 'Payment Means Code');
 
         if HasBankAccount then begin
-            OpenGroup(Xml, 'cac:PayeeFinancialAccount');
-            AddElement(Xml, 'cbc:ID', BankAccount.IBAN, 'Payee IBAN');
-            AddElement(Xml, 'cbc:Name', BankAccount.Name, 'Payee Bank Account Name');
-            if BankAccount."SWIFT Code" <> '' then begin
+            if (BankAccount.IBAN <> '') then begin
+                OpenGroup(Xml, 'cac:PayeeFinancialAccount');
+                AddElement(Xml, 'cbc:ID', BankAccount.IBAN, 'Payee IBAN');
+                AddElement(Xml, 'cbc:Name', BankAccount.Name, 'Payee Bank Account Name');
+                if BankAccount."SWIFT Code" <> '' then begin
+                    OpenGroup(Xml, 'cac:FinancialInstitutionBranch');
+                    AddElement(Xml, 'cbc:ID', BankAccount."SWIFT Code", 'Payee BIC');
+                    CloseGroup(Xml);
+                end;
+                CloseGroup(Xml);
+            end
+            else begin
+                CompanySetup.get();
+                OpenGroup(Xml, 'cac:PayeeFinancialAccount');
+                AddElement(Xml, 'cbc:ID', CompanySetup.IBAN, 'Payee IBAN');
+                AddElement(Xml, 'cbc:Name', CompanySetup."Bank Name", 'Payee Bank Account Name');
                 OpenGroup(Xml, 'cac:FinancialInstitutionBranch');
-                AddElement(Xml, 'cbc:ID', BankAccount."SWIFT Code", 'Payee BIC');
+                AddElement(Xml, 'cbc:ID', CompanySetup."SWIFT Code", 'Payee BIC');
+                CloseGroup(Xml);
                 CloseGroup(Xml);
             end;
-            CloseGroup(Xml);
         end;
 
         CloseGroup(Xml);
@@ -266,12 +281,50 @@ codeunit 70113 "EDoc Sovos Invoice Builder"
     end;
 
     local procedure BuildMonetaryTotal(var Xml: TextBuilder; EDoc: Record "EDoc Document")
+    var
+        TaxExclusiveAmount: Decimal;
     begin
+        TaxExclusiveAmount :=
+            EDoc."Amount Excl. VAT";
+
         OpenGroup(Xml, 'cac:LegalMonetaryTotal');
-        AddAmount(Xml, 'cbc:LineExtensionAmount', EDoc."Currency Code", EDoc."Amount Excl. VAT", 'Amount Excl. VAT');
-        AddAmount(Xml, 'cbc:TaxExclusiveAmount', EDoc."Currency Code", EDoc."Amount Excl. VAT", 'Amount Excl. VAT');
-        AddAmount(Xml, 'cbc:TaxInclusiveAmount', EDoc."Currency Code", EDoc."Amount Incl. VAT", 'Amount Incl. VAT');
-        AddAmount(Xml, 'cbc:PayableAmount', EDoc."Currency Code", EDoc."Payable Amount", 'Payable Amount');
+
+        AddAmount(
+            Xml,
+            'cbc:LineExtensionAmount',
+            EDoc."Currency Code",
+            EDoc."Amount Excl. VAT",
+            'Amount Excl. VAT');
+
+        if EDoc."Allowance Amount" <> 0 then
+            AddAmount(
+                Xml,
+                'cbc:AllowanceTotalAmount',
+                EDoc."Currency Code",
+                EDoc."Allowance Amount",
+                'Allowance Amount');
+
+        AddAmount(
+            Xml,
+            'cbc:TaxExclusiveAmount',
+            EDoc."Currency Code",
+            TaxExclusiveAmount,
+            'Tax Exclusive Amount');
+
+        AddAmount(
+            Xml,
+            'cbc:TaxInclusiveAmount',
+            EDoc."Currency Code",
+            TaxExclusiveAmount + EDoc."VAT Amount",
+            'Amount Incl. VAT');
+
+        AddAmount(
+            Xml,
+            'cbc:PayableAmount',
+            EDoc."Currency Code",
+            EDoc."Payable Amount",
+            'Payable Amount');
+
         CloseGroup(Xml);
     end;
 
@@ -279,6 +332,7 @@ codeunit 70113 "EDoc Sovos Invoice Builder"
     var
         Line: Record "EDoc Document Line";
     begin
+
         TaxBuffer.Reset();
         TaxBuffer.DeleteAll();
 
@@ -303,6 +357,20 @@ codeunit 70113 "EDoc Sovos Invoice Builder"
                 TaxBuffer.Modify();
             until Line.Next() = 0;
 
+        if EDoc."Allowance Amount" <> 0 then begin
+            TaxBuffer.SetRange("VAT Category", EDoc."Allowance VAT Category");
+            TaxBuffer.SetRange("VAT %", EDoc."Allowance VAT %");
+
+            if TaxBuffer.FindFirst() then begin
+                TaxBuffer."Taxable Amount" -= EDoc."Allowance Amount";
+                TaxBuffer."Tax Amount" :=
+                    Round(
+                        TaxBuffer."Taxable Amount" * TaxBuffer."VAT %" / 100,
+                        0.01);
+
+                TaxBuffer.Modify();
+            end;
+        end;
         TaxBuffer.Reset();
     end;
 
@@ -319,7 +387,7 @@ codeunit 70113 "EDoc Sovos Invoice Builder"
 
                 OpenGroup(Xml, 'cac:TaxCategory');
                 AddElement(Xml, 'cbc:ID', TaxBuffer."VAT Category", 'VAT Category');
-                if TaxBuffer."VAT %" <> 0 then
+                if (TaxBuffer."VAT %" <> 0) then
                     AddElement(Xml, 'cbc:Percent', FormatDecimal(TaxBuffer."VAT %"), 'VAT %');
                 if TaxBuffer."Tax Exemption Code" <> '' then
                     AddElement(Xml, 'cbc:TaxExemptionReasonCode', TaxBuffer."Tax Exemption Code", 'Tax Exemption Code');
@@ -336,7 +404,7 @@ codeunit 70113 "EDoc Sovos Invoice Builder"
         CloseGroup(Xml);
     end;
 
-    local procedure BuildInvoiceLine(var Xml: TextBuilder; Line: Record "EDoc Document Line")
+    local procedure BuildInvoiceLine(var Xml: TextBuilder; EDoc: Record "EDoc Document"; Line: Record "EDoc Document Line")
     begin
         CurrentLineNo := Line."Line No.";
         LineSeqNo := 0;
@@ -345,20 +413,20 @@ codeunit 70113 "EDoc Sovos Invoice Builder"
 
         AddLineElement(Xml, 'cbc:ID', Format(Line."Line No."), 'Line No.');
         AddLineElementWithAttr(Xml, 'cbc:InvoicedQuantity', 'unitCode', Line."Unit Code", FormatDecimal(Line.Quantity), 'Quantity');
-        AddLineAmount(Xml, 'cbc:LineExtensionAmount', 'EUR', Line."Line Amount", 'Line Amount');
+        AddLineAmount(Xml, 'cbc:LineExtensionAmount', EDoc."Currency Code", Line."Line Amount", 'Line Amount');
 
         if Line."Line Discount Amount" <> 0 then begin
             OpenGroup(Xml, 'cac:AllowanceCharge');
             AddLineElement(Xml, 'cbc:ChargeIndicator', 'false', 'Discount indicator (fixed)');
-            AddLineAmount(Xml, 'cbc:Amount', 'EUR', Line."Line Discount Amount", 'Line Discount Amount');
+            AddLineAmount(Xml, 'cbc:Amount', EDoc."Currency Code", Line."Line Discount Amount", 'Line Discount Amount');
             CloseGroup(Xml);
         end;
 
         OpenGroup(Xml, 'cac:TaxTotal');
-        AddLineAmount(Xml, 'cbc:TaxAmount', 'EUR', Line."Tax Amount", 'Tax Amount');
+        AddLineAmount(Xml, 'cbc:TaxAmount', EDoc."Currency Code", Line."Tax Amount", 'Tax Amount');
         OpenGroup(Xml, 'cac:TaxSubtotal');
-        AddLineAmount(Xml, 'cbc:TaxableAmount', 'EUR', Line."Taxable Amount", 'Taxable Amount');
-        AddLineAmount(Xml, 'cbc:TaxAmount', 'EUR', Line."Tax Amount", 'Tax Amount');
+        AddLineAmount(Xml, 'cbc:TaxableAmount', EDoc."Currency Code", Line."Taxable Amount", 'Taxable Amount');
+        AddLineAmount(Xml, 'cbc:TaxAmount', EDoc."Currency Code", Line."Tax Amount", 'Tax Amount');
         OpenGroup(Xml, 'cac:TaxCategory');
         AddLineElement(Xml, 'cbc:ID', Line."VAT Category", 'VAT Category');
         AddLineElement(Xml, 'cbc:Percent', FormatDecimal(Line."VAT %"), 'VAT %');
@@ -404,8 +472,25 @@ codeunit 70113 "EDoc Sovos Invoice Builder"
 
         OpenGroup(Xml, 'cac:ClassifiedTaxCategory');
         AddLineElement(Xml, 'cbc:ID', Line."VAT Category", 'VAT Category');
-        AddLineElement(Xml, 'cbc:Percent', FormatDecimal(Line."VAT %"), 'VAT %');
+        if Line."VAT %" <> 0 then
+            AddLineElement(
+                Xml,
+                'cbc:Percent',
+                FormatDecimal(Line."VAT %"),
+                'VAT %');
+        if Line."Tax Exemption Code" <> '' then
+            AddLineElement(
+                Xml,
+                'cbc:TaxExemptionReasonCode',
+                Line."Tax Exemption Code",
+                'Tax Exemption Code');
 
+        if Line."Tax Exemption Reason" <> '' then
+            AddLineElement(
+                Xml,
+                'cbc:TaxExemptionReason',
+                Line."Tax Exemption Reason",
+                'Tax Exemption Reason');
         OpenGroup(Xml, 'cac:TaxScheme');
         AddLineElement(Xml, 'cbc:ID', 'VAT', 'Tax Scheme');
         CloseGroup(Xml);
@@ -415,7 +500,7 @@ codeunit 70113 "EDoc Sovos Invoice Builder"
         CloseGroup(Xml);
 
         OpenGroup(Xml, 'cac:Price');
-        AddLineAmount(Xml, 'cbc:PriceAmount', 'EUR', Line."Unit Price", 'Unit Price');
+        AddLineAmount(Xml, 'cbc:PriceAmount', EDoc."Currency Code", Line."Unit Price", 'Unit Price');
         if Line."Price Base Quantity" > 0 then
             AddLineElementWithAttr(
                 Xml,
@@ -429,6 +514,52 @@ codeunit 70113 "EDoc Sovos Invoice Builder"
         CloseGroup(Xml);
     end;
 
+    local procedure BuildAllowanceCharge(var Xml: TextBuilder; EDoc: Record "EDoc Document")
+    begin
+        if EDoc."Allowance Amount" = 0 then
+            exit;
+
+        OpenGroup(Xml, 'cac:AllowanceCharge');
+
+        AddElement(Xml, 'cbc:ChargeIndicator', 'false', 'Charge Indicator');
+
+        if EDoc."Allowance Reason" <> '' then
+            AddElement(
+                Xml,
+                'cbc:AllowanceChargeReason',
+                EDoc."Allowance Reason",
+                'Allowance Reason');
+
+        AddAmount(
+            Xml,
+            'cbc:Amount',
+            EDoc."Currency Code",
+            EDoc."Allowance Amount",
+            'Allowance Amount');
+
+        OpenGroup(Xml, 'cac:TaxCategory');
+
+        AddElement(
+            Xml,
+            'cbc:ID',
+            EDoc."Allowance VAT Category",
+            'Allowance VAT Category');
+
+        if EDoc."Allowance VAT %" <> 0 then
+            AddElement(
+                Xml,
+                'cbc:Percent',
+                FormatDecimal(EDoc."Allowance VAT %"),
+                'Allowance VAT %');
+
+        OpenGroup(Xml, 'cac:TaxScheme');
+        AddElement(Xml, 'cbc:ID', 'VAT', 'Tax Scheme');
+        CloseGroup(Xml);
+
+        CloseGroup(Xml);
+
+        CloseGroup(Xml);
+    end;
     // ----------------------------------------------------------------------
     // Path-tracking group open/close - every OpenGroup/CloseGroup pair keeps
     // PathStack in sync with what's actually open in the XML at that point.

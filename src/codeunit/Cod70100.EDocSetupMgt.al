@@ -28,10 +28,11 @@ codeunit 70100 "EDoc Setup Mgt."
     procedure CreateDefaultService()
     var
         Service: Record "EDoc Service";
+        CompanyInfo: Record "Company Information";
     begin
         if Service.FindFirst() then
             exit;
-
+        CompanyInfo.Get();
         Service.Init();
         Service.Code := 'SOVOS_TEST';
         Service.Description := 'Sovos Test';
@@ -40,9 +41,10 @@ codeunit 70100 "EDoc Setup Mgt."
         Service.Enabled := true;
         Service."Base URL" := 'https://api-test.sovos.com';
         Service."OAuth URL" := 'https://api-test.sovos.com/oauth/token';
-        Service."Invoice Endpoint" := '/compliance-network/v1/france/invoices';
+        Service."Invoice Endpoint" := '/v1/documents';
         Service."E-Reporting Endpoint" := '/compliance-network/v1/france/e-reports';
         Service."Status Endpoint" := '/compliance-network/v1/france/messages';
+        Service."Payee Bank Account Code" := CompanyInfo."Default Bank Account No.";
         Service.Insert(true);
     end;
 }

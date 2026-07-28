@@ -52,6 +52,12 @@ page 70111 "EDoc Document Card"
                 field("Document Type"; Rec."Document Type")
                 {
                     ApplicationArea = All;
+                    editable = false;
+                }
+                field("flow type"; Rec."flow type")
+                {
+                    ApplicationArea = All;
+                    editable = false;
                 }
 
                 field("Invoice No."; Rec."Invoice No.")
@@ -203,6 +209,30 @@ page 70111 "EDoc Document Card"
                 {
                     ApplicationArea = All;
                 }
+                field("Allowance Amount"; Rec."Allowance Amount")
+                {
+                    ApplicationArea = All;
+                }
+
+                field("Allowance Reason"; Rec."Allowance Reason")
+                {
+                    ApplicationArea = All;
+                    MultiLine = true;
+                }
+
+                field("Allowance VAT Category"; Rec."Allowance VAT Category")
+                {
+                    ApplicationArea = All;
+                }
+
+                field("Allowance VAT %"; Rec."Allowance VAT %")
+                {
+                    ApplicationArea = All;
+                }
+                field("Collected Amount"; Rec."Collected Amount")
+                {
+                    ApplicationArea = All;
+                }
             }
             group(References)
             {
@@ -252,19 +282,6 @@ page 70111 "EDoc Document Card"
                 action(ImportPostedInvoice)
                 {
                     Caption = 'Import Posted Invoice';
-                    Image = GetSourceDoc;
-
-                    trigger OnAction()
-                    var
-                        ImportMgt: Codeunit "EDoc Import Mgt.";
-                    begin
-                        ImportMgt.CreateFromPostedInvoice(Rec);
-                        CurrPage.Update(true);
-                    end;
-                }
-                action(ImportPostedInvoiceE_Reporting)
-                {
-                    Caption = 'Import Posted Invoice E_Reporting';
                     Image = GetSourceDoc;
 
                     trigger OnAction()

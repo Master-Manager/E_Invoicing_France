@@ -234,12 +234,33 @@ codeunit 70115 "EDoc Import Mgt."
         exit(CopyStr(PaymentTerms.Description, 1, 250));
     end;
 
+    local procedure IsWithholdingLine(
+        SalesInvLine: Record "Sales Invoice Line"): Boolean
+    begin
+        exit(
+            (SalesInvLine.Type = SalesInvLine.Type::"G/L Account")
+            and
+            (SalesInvLine."No." = '635810'));
+    end;
+
+    local procedure ApplyWithholdingAllowance(
+        var EDoc: Record "EDoc Document";
+        SalesInvLine: Record "Sales Invoice Line")
+    begin
+        EDoc."Allowance Amount" += Abs(SalesInvLine."Line Amount");
+        EDoc."Allowance Reason" := SalesInvLine.Description;
+        EDoc."Allowance VAT Category" := 'S';
+        EDoc."Allowance VAT %" := SalesInvLine."VAT %";
+        EDoc.Modify(true);
+    end;
+
     local procedure CopyLines(
      SalesInvHeader: Record "Sales Invoice Header";
-     EDoc: Record "EDoc Document")
+     var EDoc: Record "EDoc Document")
     var
         SalesInvLine: Record "Sales Invoice Line";
         EDocLine: Record "EDoc Document Line";
+        VATPostingSetup: Record "VAT Posting Setup";
     begin
         EDocLine.SetRange("Document Entry No.", EDoc."Entry No.");
 
@@ -247,88 +268,101 @@ codeunit 70115 "EDoc Import Mgt."
             EDocLine.DeleteAll();
 
         SalesInvLine.SetRange("Document No.", SalesInvHeader."No.");
+        // SalesInvLine.SetFilter("No.", '<>%1', '');
 
         if SalesInvLine.FindSet() then
             repeat
-                EDocLine.Init();
+                if IsWithholdingLine(SalesInvLine) then begin
+                    ApplyWithholdingAllowance(EDoc, SalesInvLine);
 
-                EDocLine."Document Entry No." := EDoc."Entry No.";
-                EDocLine."Line No." := SalesInvLine."Line No.";
+                end else begin
+                    EDocLine.Init();
 
-                //---------------------------------------
-                // Source
-                //---------------------------------------
+                    EDocLine."Document Entry No." := EDoc."Entry No.";
+                    EDocLine."Line No." := SalesInvLine."Line No.";
 
-                EDocLine."Source Line No." := SalesInvLine."Line No.";
-                EDocLine.Type := SalesInvLine.Type;
-                EDocLine."No." := SalesInvLine."No.";
+                    //---------------------------------------
+                    // Source
+                    //---------------------------------------
 
-                //---------------------------------------
-                // Description
-                //---------------------------------------
+                    EDocLine."Source Line No." := SalesInvLine."Line No.";
+                    EDocLine.Type := SalesInvLine.Type;
+                    EDocLine."No." := SalesInvLine."No.";
 
-                EDocLine.Description := SalesInvLine.Description;
-                EDocLine."Description 2" := SalesInvLine."Description 2";
+                    //---------------------------------------
+                    // Description
+                    //---------------------------------------
 
-                //---------------------------------------
-                // Quantity
-                //---------------------------------------
+                    EDocLine.Description := SalesInvLine.Description;
+                    EDocLine."Description 2" := SalesInvLine."Description 2";
 
-                EDocLine.Quantity := SalesInvLine.Quantity;
-                EDocLine."Unit of Measure" := SalesInvLine."Unit of Measure Code";
-                EDocLine."Unit Code" := 'C62';
-                EDocLine."Base Quantity" := SalesInvLine.Quantity;
-                EDocLine."Price Base Quantity" := 1;
+                    //---------------------------------------
+                    // Quantity
+                    //---------------------------------------
 
-                //---------------------------------------
-                // Prices
-                //---------------------------------------
+                    EDocLine.Quantity := SalesInvLine.Quantity;
+                    EDocLine."Unit of Measure" := SalesInvLine."Unit of Measure Code";
+                    EDocLine."Unit Code" := 'C62';
+                    EDocLine."Base Quantity" := SalesInvLine.Quantity;
+                    EDocLine."Price Base Quantity" := 1;
 
-                EDocLine."Unit Price" := SalesInvLine."Unit Price";
-                EDocLine."Line Amount" := SalesInvLine."Line Amount";
-                EDocLine."Line Discount Amount" := SalesInvLine."Line Discount Amount";
+                    //---------------------------------------
+                    // Prices
+                    //---------------------------------------
 
-                //---------------------------------------
-                // VAT
-                //---------------------------------------
+                    EDocLine."Unit Price" := SalesInvLine."Unit Price";
+                    EDocLine."Line Amount" := SalesInvLine."Line Amount";
+                    EDocLine."Line Discount Amount" := SalesInvLine."Line Discount Amount";
 
-                EDocLine."VAT %" := SalesInvLine."VAT %";
-                EDocLine."Taxable Amount" := SalesInvLine."Line Amount";
-                EDocLine."Tax Amount" :=
-                    SalesInvLine."Amount Including VAT" -
-                    SalesInvLine."Line Amount";
-                EDocLine."Amount Including VAT" := SalesInvLine."Amount Including VAT";
+                    //---------------------------------------
+                    // VAT
+                    //---------------------------------------
 
-                case SalesInvLine."VAT %" of
-                    0:
-                        begin
-                            EDocLine."VAT Category" := 'O';
-                            EDocLine."Tax Exemption Code" := 'VATEX-EU-O';
-                            EDocLine."Tax Exemption Reason" := 'Not subject to VAT';
-                        end;
-                    else
-                        EDocLine."VAT Category" := 'S';
+                    EDocLine."VAT %" := SalesInvLine."VAT %";
+
+                    EDocLine."Taxable Amount" := SalesInvLine."Line Amount";
+
+                    EDocLine."Tax Amount" :=
+                        SalesInvLine."Amount Including VAT" -
+                        SalesInvLine."Line Amount";
+
+                    EDocLine."Amount Including VAT" :=
+                        SalesInvLine."Amount Including VAT";
+
+                    VATPostingSetup.Get(
+                        SalesInvLine."VAT Bus. Posting Group",
+                        SalesInvLine."VAT Prod. Posting Group");
+
+                    EDocLine."VAT Category" :=
+                        VATPostingSetup."Sovos VAT Category";
+
+                    EDocLine."Tax Exemption Code" :=
+                        VATPostingSetup."Sovos Exemption Code";
+
+                    EDocLine."Tax Exemption Reason" :=
+                        VATPostingSetup."Sovos Exemption Reason";
+
+                    //---------------------------------------
+                    // References
+                    //---------------------------------------
+
+                    EDocLine."Order No." := SalesInvHeader."Order No.";
+                    EDocLine."Order Line No." := 0;
+
+                    //---------------------------------------
+                    // Future
+                    //---------------------------------------
+
+                    EDocLine."Buyer Item No." := '';
+                    EDocLine."Seller Item No." := SalesInvLine."No.";
+                    EDocLine."Commodity Code" := '';
+                    EDocLine."Country of Origin" := '';
+                    EDocLine."Start Date" := SalesInvHeader."Posting Date";
+                    EDocLine."End Date" := SalesInvHeader."Posting Date";
+
+                    EDocLine.Insert();
                 end;
 
-                //---------------------------------------
-                // References
-                //---------------------------------------
-
-                EDocLine."Order No." := SalesInvHeader."Order No.";
-                EDocLine."Order Line No." := 0;
-
-                //---------------------------------------
-                // Future
-                //---------------------------------------
-
-                EDocLine."Buyer Item No." := '';
-                EDocLine."Seller Item No." := SalesInvLine."No.";
-                EDocLine."Commodity Code" := '';
-                EDocLine."Country of Origin" := '';
-                EDocLine."Start Date" := SalesInvHeader."Posting Date";
-                EDocLine."End Date" := SalesInvHeader."Posting Date";
-
-                EDocLine.Insert();
             until SalesInvLine.Next() = 0;
     end;
 
@@ -369,8 +403,9 @@ codeunit 70115 "EDoc Import Mgt."
 
         CopyEReportingHeader(SalesInvHeader, Customer, EReportingDoc);
         CopyLines(SalesInvHeader, EReportingDoc);
-
+        DetermineTransactionCategory(EReportingDoc);
         ResolveVATRateAndCategory(SalesInvHeader."No.", VATRate, VATCategory);
+        DetermineTaxDueDate(EReportingDoc);
         EReportingDoc."VAT Rate" := VATRate;
         EReportingDoc."VAT Category" := VATCategory;
 
@@ -381,6 +416,46 @@ codeunit 70115 "EDoc Import Mgt."
         EReportingDoc."Created At" := CurrentDateTime();
 
         EReportingDoc.Modify(true);
+    end;
+
+    local procedure DetermineTransactionCategory(var EDoc: Record "EDoc Document")
+    var
+        EDocLine: Record "EDoc Document Line";
+        HasItem: Boolean;
+        HasService: Boolean;
+    begin
+        EDocLine.SetRange("Document Entry No.", EDoc."Entry No.");
+
+        if EDocLine.FindSet() then
+            repeat
+                case EDocLine.Type of
+
+                    EDocLine.Type::Item:
+                        HasItem := true;
+
+                    EDocLine.Type::"G/L Account":
+                        HasService := true;
+
+                    EDocLine.Type::Resource:
+                        HasService := true;
+
+                    EDocLine.Type::"Fixed Asset":
+                        HasService := true;
+                end;
+            until EDocLine.Next() = 0;
+
+        if HasItem then
+            EDoc."Transaction Category" := 'TLB1'
+        else
+            if HasService then
+                EDoc."Transaction Category" := 'TPS1'
+            else
+                EDoc."Transaction Category" := 'TLB1';
+    end;
+
+    local procedure DetermineTaxDueDate(var EDoc: Record "EDoc Document")
+    begin
+        EDoc."Tax Due Date Type Code" := '01';
     end;
 
     procedure ImportCollectionFromApplication(OriginalEReportingDoc: Record "EDoc Document"; CollectedAmount: Decimal; CollectionDate: Date; var NewEReportingDoc: Record "EDoc Document")
@@ -474,6 +549,40 @@ codeunit 70115 "EDoc Import Mgt."
         EReportingDoc."Amount Excl. VAT" := SalesInvHeader.Amount;
         EReportingDoc."VAT Amount" := SalesInvHeader."Amount Including VAT" - SalesInvHeader.Amount;
         EReportingDoc."Amount Incl. VAT" := SalesInvHeader."Amount Including VAT";
+
+        //---------------------------------------
+        // E-Reporting
+        //---------------------------------------
+
+        EReportingDoc."Reporting Date" := SalesInvHeader."Posting Date";
+
+        EReportingDoc."Transaction Currency" := EReportingDoc."Currency Code";
+
+        EReportingDoc."Transaction Count" := 1;
+
+        EReportingDoc."Flow Direction" :=
+            EReportingDoc."Flow Direction"::Outbound;
+
+        EReportingDoc."Reporting Role" :=
+            EReportingDoc."Reporting Role"::Seller;
+
+        EReportingDoc."Report Type Code" := 'IN';
+
+        EReportingDoc."Correction" := false;
+
+        EReportingDoc."Report ID" :=
+            CopyStr(
+                Format(CurrentDateTime(), 0, '<Year4><Month,2><Day,2><Hours24,2><Minutes,2><Seconds,2>')
+                + '-'
+                + SalesInvHeader."No.",
+                1,
+                35);
+
+        if Customer."Country/Region Code" <> 'FR' then
+            EReportingDoc."Reporting Flow" := EReportingDoc."Reporting Flow"::"10.1";
+        EReportingDoc."Payment Method Code" := SalesInvHeader."Payment Method Code";
+        EReportingDoc."Payment Reference" := SalesInvHeader."Payment Reference";
+        EReportingDoc."Payment Date" := SalesInvHeader."Due Date";
     end;
 
     /// <summary>
@@ -484,20 +593,31 @@ codeunit 70115 "EDoc Import Mgt."
     var
         SalesInvLine: Record "Sales Invoice Line";
         VATCategoryMap: Record "EDoc VAT Category Map";
+        VATPostingSetup: Record "VAT Posting Setup";
     begin
         SalesInvLine.SetRange("Document No.", SalesInvoiceNo);
         SalesInvLine.SetFilter(Type, '<>%1', SalesInvLine.Type::" ");
         SalesInvLine.SetFilter("VAT %", '<>%1', 0);
         if SalesInvLine.FindFirst() then begin
             VATRate := SalesInvLine."VAT %";
-            VATCategory := VATCategoryMap.ResolveCategory(SalesInvLine."VAT Bus. Posting Group", SalesInvLine."VAT Prod. Posting Group", VATRate);
+            VATPostingSetup.Get(
+    SalesInvLine."VAT Bus. Posting Group",
+    SalesInvLine."VAT Prod. Posting Group");
+
+            VATCategory := VATPostingSetup."Sovos VAT Category";
+            // VATCategory := VATCategoryMap.ResolveCategory(SalesInvLine."VAT Bus. Posting Group", SalesInvLine."VAT Prod. Posting Group", VATRate);
             exit;
         end;
 
         SalesInvLine.SetRange("VAT %");
         if SalesInvLine.FindFirst() then begin
             VATRate := SalesInvLine."VAT %";
-            VATCategory := VATCategoryMap.ResolveCategory(SalesInvLine."VAT Bus. Posting Group", SalesInvLine."VAT Prod. Posting Group", VATRate);
+            VATPostingSetup.Get(
+    SalesInvLine."VAT Bus. Posting Group",
+    SalesInvLine."VAT Prod. Posting Group");
+
+            VATCategory := VATPostingSetup."Sovos VAT Category";
+            // VATCategory := VATCategoryMap.ResolveCategory(SalesInvLine."VAT Bus. Posting Group", SalesInvLine."VAT Prod. Posting Group", VATRate);
             exit;
         end;
 

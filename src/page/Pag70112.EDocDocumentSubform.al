@@ -65,6 +65,14 @@ page 70112 "EDoc Document Subform"
                 {
                     ApplicationArea = All;
                 }
+                field("Tax Exemption Code"; Rec."Tax Exemption Code")
+                {
+                    ApplicationArea = All;
+                }
+                field("Tax Exemption Reason"; Rec."Tax Exemption Reason")
+                {
+                    ApplicationArea = All;
+                }
 
                 field("Tax Amount"; Rec."Tax Amount")
                 {
