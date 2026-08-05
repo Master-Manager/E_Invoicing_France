@@ -28,6 +28,11 @@ page 70121 "EDoc Sovos Document Card"
                 field("Transaction Id"; Rec."Transaction Id") { ApplicationArea = All; Editable = false; }
                 field("Country Code"; Rec."Country Code") { ApplicationArea = All; }
                 field("Sent At"; Rec."Sent At") { ApplicationArea = All; Editable = false; }
+                field("Sovos Status"; Rec."Sovos Status")
+                {
+                    Editable = false;
+                    StyleExpr = StatusStyleTxt;
+                }
                 field("Last Notification Check At"; Rec."Last Notification Check At") { ApplicationArea = All; Editable = false; }
             }
 
@@ -76,4 +81,25 @@ page 70121 "EDoc Sovos Document Card"
             }
         }
     }
+
+    trigger OnAfterGetRecord()
+    begin
+        Rec.UpdateSovosStatus();
+        SetStyleExpression();
+    end;
+
+    var
+        StatusStyleTxt: Text;
+
+    local procedure SetStyleExpression()
+    begin
+        case Rec."Sovos Status" of
+            Rec."Sovos Status"::Accepted:
+                StatusStyleTxt := 'Favorable';
+            Rec."Sovos Status"::Rejected:
+                StatusStyleTxt := 'Unfavorable';
+            else
+                StatusStyleTxt := 'StrongAccent';
+        end;
+    end;
 }

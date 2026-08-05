@@ -31,6 +31,9 @@ codeunit 70113 "EDoc Sovos Invoice Builder"
         BuildMandatoryNotes(Xml, EDocService);
         BuildReferences(Xml, EDoc);
 
+        if EDoc."Document Type" = EDoc."Document Type"::CreditMemo then
+            BuildBillingReference(Xml, EDoc);
+
         BuildSupplier(Xml, EDoc);
         BuildCustomer(Xml, EDoc);
 
@@ -86,7 +89,11 @@ codeunit 70113 "EDoc Sovos Invoice Builder"
         AddElement(Xml, 'cbc:ID', EDoc."Invoice No.", 'Invoice No.');
         AddElement(Xml, 'cbc:IssueDate', FormatDate(EDoc."Issue Date"), 'Issue Date');
         AddElement(Xml, 'cbc:DueDate', FormatDate(EDoc."Due Date"), 'Due Date');
-        AddElement(Xml, 'cbc:InvoiceTypeCode', EDoc."Invoice Type Code", 'Invoice Type Code');
+        if EDoc."Document Type" = EDoc."Document Type"::Invoice then
+            AddElement(Xml, 'cbc:InvoiceTypeCode', '380', 'Invoice Type Code')
+        else if
+            EDoc."Document Type" = EDoc."Document Type"::CreditMemo then
+            AddElement(Xml, 'cbc:InvoiceTypeCode', '381', 'Invoice Type Code');
         AddElement(Xml, 'cbc:DocumentCurrencyCode', EDoc."Currency Code", 'Currency Code');
         AddElement(Xml, 'cbc:TaxCurrencyCode', EDoc."Tax Currency Code", 'Tax Currency Code');
     end;
@@ -122,6 +129,33 @@ codeunit 70113 "EDoc Sovos Invoice Builder"
             AddElement(Xml, 'cbc:ID', EDoc."Order No.", 'Order No.');
             CloseGroup(Xml);
         end;
+    end;
+
+    local procedure BuildBillingReference(var Xml: TextBuilder; EDoc: Record "EDoc Document")
+    begin
+        if EDoc."Original Invoice No." = '' then
+            exit;
+
+        OpenGroup(Xml, 'cac:BillingReference');
+
+        OpenGroup(Xml, 'cac:InvoiceDocumentReference');
+
+        AddElement(
+            Xml,
+            'cbc:ID',
+            EDoc."Original Invoice No.",
+            'Original Invoice No.');
+
+        if EDoc."Original Invoice Date" <> 0D then
+            AddElement(
+                Xml,
+                'cbc:IssueDate',
+                FormatDate(EDoc."Original Invoice Date"),
+                'Original Invoice Date');
+
+        CloseGroup(Xml);
+
+        CloseGroup(Xml);
     end;
 
     local procedure BuildSupplier(var Xml: TextBuilder; EDoc: Record "EDoc Document")
@@ -387,8 +421,8 @@ codeunit 70113 "EDoc Sovos Invoice Builder"
 
                 OpenGroup(Xml, 'cac:TaxCategory');
                 AddElement(Xml, 'cbc:ID', TaxBuffer."VAT Category", 'VAT Category');
-                if (TaxBuffer."VAT %" <> 0) then
-                    AddElement(Xml, 'cbc:Percent', FormatDecimal(TaxBuffer."VAT %"), 'VAT %');
+                //if (TaxBuffer."VAT %" <> 0) then
+                AddElement(Xml, 'cbc:Percent', FormatDecimal(TaxBuffer."VAT %"), 'VAT %');
                 if TaxBuffer."Tax Exemption Code" <> '' then
                     AddElement(Xml, 'cbc:TaxExemptionReasonCode', TaxBuffer."Tax Exemption Code", 'Tax Exemption Code');
                 if TaxBuffer."Tax Exemption Reason" <> '' then
@@ -472,12 +506,12 @@ codeunit 70113 "EDoc Sovos Invoice Builder"
 
         OpenGroup(Xml, 'cac:ClassifiedTaxCategory');
         AddLineElement(Xml, 'cbc:ID', Line."VAT Category", 'VAT Category');
-        if Line."VAT %" <> 0 then
-            AddLineElement(
-                Xml,
-                'cbc:Percent',
-                FormatDecimal(Line."VAT %"),
-                'VAT %');
+        // if Line."VAT %" <> 0 then
+        AddLineElement(
+            Xml,
+            'cbc:Percent',
+            FormatDecimal(Line."VAT %"),
+            'VAT %');
         if Line."Tax Exemption Code" <> '' then
             AddLineElement(
                 Xml,

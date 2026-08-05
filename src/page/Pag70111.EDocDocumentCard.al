@@ -52,18 +52,33 @@ page 70111 "EDoc Document Card"
                 field("Document Type"; Rec."Document Type")
                 {
                     ApplicationArea = All;
-                    editable = false;
+                    // editable = false;
                 }
                 field("flow type"; Rec."flow type")
                 {
                     ApplicationArea = All;
-                    editable = false;
+                    //  editable = false;
                 }
 
                 field("Invoice No."; Rec."Invoice No.")
                 {
                     ApplicationArea = All;
                     Editable = false;
+                }
+                field("Invoice Type Code"; Rec."Invoice Type Code")
+                {
+                    Editable = false;
+                    ToolTip = 'Specifies the value of the Invoice Type Code field.', Comment = '%';
+                }
+                field("Original Invoice No."; Rec."Original Invoice No.")
+                {
+                    Editable = false;
+                    Caption = 'Original Invoice No. (Avoirs)';
+                }
+                field("Original Invoice Date"; Rec."Original Invoice Date")
+                {
+                    Editable = false;
+                    Caption = 'Original Invoice Date (Avoirs)';
                 }
 
                 field("Source Document No."; Rec."Document No.")
@@ -290,6 +305,26 @@ page 70111 "EDoc Document Card"
                         NewEDoc: Record "EDoc Document";
                     begin
                         ImportMgt.CreateFromPostedInvoice(NewEDoc);
+
+                        if NewEDoc."Entry No." <> 0 then begin
+                            Rec := NewEDoc;
+                            if Rec.Find() then
+                                CurrPage.Update(false);
+                        end;
+                    end;
+                }
+
+                action(ImportPostedCreditMemo)
+                {
+                    Caption = 'Import Posted Credit Memo';
+                    Image = CreditMemo;
+
+                    trigger OnAction()
+                    var
+                        ImportMgt: Codeunit "EDoc Import Mgt.";
+                        NewEDoc: Record "EDoc Document";
+                    begin
+                        ImportMgt.CreateFromPostedCreditMemo(NewEDoc);
 
                         if NewEDoc."Entry No." <> 0 then begin
                             Rec := NewEDoc;

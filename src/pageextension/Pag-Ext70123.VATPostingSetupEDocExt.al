@@ -19,7 +19,6 @@ pageextension 70123 "VAT Posting Setup EDoc Ext" extends "VAT Posting Setup"
             field("Sovos Exemption Reason"; Rec."Sovos Exemption Reason")
             {
                 ApplicationArea = All;
-                MultiLine = true;
                 ToolTip = 'UBL Tax Exemption Reason.';
             }
         }

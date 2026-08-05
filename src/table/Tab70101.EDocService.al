@@ -117,7 +117,7 @@ table 70101 "EDoc Service"
             // real Bank Account record rather than duplicating IBAN/BIC as free text here.
         }
 
-        field(200; "Late Payment Penalty Note"; Text[250])
+        field(200; "Late Payment Penalty Note"; Text[2048])
         {
             Caption = 'Mention pénalités de retard (#PMD#)';
             // BT-21=PMD / BT-22. Mandatory on French B2B invoices (Code de commerce
@@ -126,13 +126,13 @@ table 70101 "EDoc Service"
             // rather than emit placeholder legal text.
         }
 
-        field(210; "Recovery Fee Note"; Text[250])
+        field(210; "Recovery Fee Note"; Text[2048])
         {
             Caption = 'Mention indemnité de recouvrement (#PMT#)';
             // BT-21=PMT / BT-22. Same mandatory-disclosure caveat as above.
         }
 
-        field(220; "Early Payment Discount Note"; Text[250])
+        field(220; "Early Payment Discount Note"; Text[2048])
         {
             Caption = 'Mention escompte (#AAB#)';
             // BT-21=AAB / BT-22. Same mandatory-disclosure caveat as above.

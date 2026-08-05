@@ -20,6 +20,14 @@ pageextension 70120 "Customer Card EDoc Ext RFE" extends "Customer Card"
                 {
                     ApplicationArea = All;
                 }
+                field("Client Nature"; Rec."Client Nature")
+                {
+                    ApplicationArea = All;
+                }
+                field("Assujetti TVA"; Rec."Assujetti TVA")
+                {
+                    ApplicationArea = All;
+                }
             }
         }
     }

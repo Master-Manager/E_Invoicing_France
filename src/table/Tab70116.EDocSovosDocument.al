@@ -76,7 +76,11 @@ table 70116 "EDoc Sovos Document"
         field(41; "Last Notification Check At"; DateTime)
         {
         }
+        field(42; "Sovos Status"; Enum "EDoc Sovos Doc Status")
+        {
+            Caption = 'Sovos Status';
 
+        }
         field(50; "Submission Response"; Blob)
         {
             Caption = 'Réponse de soumission (JSON brut)';
@@ -130,5 +134,34 @@ table 70116 "EDoc Sovos Document"
             Content += LineTxt;
         end;
         exit(Content);
+    end;
+
+    procedure UpdateSovosStatus()
+    var
+        Notification: Record "EDoc Sovos Notification";
+    begin
+        Notification.SetRange("Sovos Document Entry No.", "Entry No.");
+
+        Notification.SetCurrentKey("Sovos Document Entry No.", "Created Date");
+        Notification.Ascending(false);
+
+        if not Notification.FindFirst() then begin
+            "Sovos Status" := "Sovos Status"::Submitted;
+            exit;
+        end;
+
+        case Notification."SCI Response Code" of
+            'RE':
+                "Sovos Status" := "Sovos Status"::Rejected;
+
+            'AP':
+                "Sovos Status" := "Sovos Status"::Accepted;
+
+            'AB':
+                "Sovos Status" := "Sovos Status"::Accepted;
+
+            else
+                "Sovos Status" := "Sovos Status"::Submitted;
+        end;
     end;
 }

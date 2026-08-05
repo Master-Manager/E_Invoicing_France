@@ -20,6 +20,14 @@ pageextension 70121 "Vendor Card EDoc Ext RFE" extends "Vendor Card"
                 {
                     ApplicationArea = All;
                 }
+                field("Vendor Nature"; Rec."Vendor Nature")
+                {
+                    ApplicationArea = All;
+                }
+                field("Assujetti TVA"; Rec."Assujetti TVA")
+                {
+                    ApplicationArea = All;
+                }
             }
         }
     }

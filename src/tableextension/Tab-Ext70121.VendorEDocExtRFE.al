@@ -19,5 +19,15 @@ tableextension 70121 "Vendor EDoc Ext RFE" extends Vendor
             Caption = 'EDoc Endpoint ID';
             DataClassification = CustomerContent;
         }
+        field(70103; "Vendor Nature"; Code[50])
+        {
+            Caption = 'Vendor Client';
+            DataClassification = CustomerContent;
+        }
+        field(70104; "Assujetti TVA"; boolean)
+        {
+            Caption = 'Assujetti TVA';
+            DataClassification = CustomerContent;
+        }
     }
 }

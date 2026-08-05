@@ -84,6 +84,7 @@ codeunit 70116 "EDoc Sovos Document Mgt."
         MetadataObj: JsonObject;
         NotificationId: Text;
         NotificationJson: Text;
+        SovosDocument: Record "EDoc Sovos Document";
     begin
         NotificationId := GetJsonText(NotificationObj, 'notificationId');
 
@@ -110,6 +111,7 @@ codeunit 70116 "EDoc Sovos Document Mgt."
         Notification."SCI Status Action" := CopyStr(GetJsonText(MetadataObj, 'sciStatusAction'), 1, MaxStrLen(Notification."SCI Status Action"));
 
         Notification."Retrieved At" := CurrentDateTime();
+
         Notification.Insert(true);
 
         Notification.SetContentBase64(GetJsonText(NotificationObj, 'content'));

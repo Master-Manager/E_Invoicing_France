@@ -1,4 +1,4 @@
-codeunit 70124 "EDoc ER XML Helper"
+codeunit 70123 "EDoc ER XML Helper"
 {
     Access = Internal;
 

@@ -20,6 +20,10 @@ page 70120 "EDoc Sovos Documents"
                 field("Customer Name"; Rec."Customer Name") { ApplicationArea = All; }
                 field("Amount Incl. VAT"; Rec."Amount Incl. VAT") { ApplicationArea = All; }
                 field("Sent At"; Rec."Sent At") { ApplicationArea = All; }
+                field("Sovos Status"; Rec."Sovos Status")
+                {
+                    StyleExpr = StatusStyleTxt;
+                }
                 field("Last Notification Check At"; Rec."Last Notification Check At") { ApplicationArea = All; }
                 field("Notification Count"; Rec."Notification Count") { ApplicationArea = All; }
             }
@@ -47,4 +51,24 @@ page 70120 "EDoc Sovos Documents"
             }
         }
     }
+    trigger OnAfterGetRecord()
+    begin
+        Rec.UpdateSovosStatus();
+        SetStyleExpression();
+    end;
+
+    var
+        StatusStyleTxt: Text;
+
+    local procedure SetStyleExpression()
+    begin
+        case Rec."Sovos Status" of
+            Rec."Sovos Status"::Accepted:
+                StatusStyleTxt := 'Favorable';
+            Rec."Sovos Status"::Rejected:
+                StatusStyleTxt := 'Unfavorable';
+            else
+                StatusStyleTxt := 'StrongAccent';
+        end;
+    end;
 }

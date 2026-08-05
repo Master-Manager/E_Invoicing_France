@@ -114,23 +114,31 @@ page 70124 "EDoc EReporting Documents"
                     OutStream: OutStream;
                     InStream: InStream;
                     FileName: Text;
+                    SbdBuilder: Codeunit "SBD Builder";
+                    SbdXml: Text;
+                    Viewer: Page "JSON Viewer";
                 begin
                     Rec.TestField("Document No.");
 
                     // 1. Génération du texte XML
                     XmlContent := SovosBuilder.BuildEReportingXml(Rec);
 
+                    SbdXml := SbdBuilder.BuildEReportingSBD(XmlContent, Rec);
+
                     if XmlContent = '' then
                         Error('Le générateur a renvoyé un flux vide.');
 
-                    // 2. Écriture du texte dans un flux temporaire encodé en UTF-8
-                    TempBlob.CreateOutStream(OutStream, TEXTENCODING::UTF8);
-                    OutStream.WriteText(XmlContent);
-                    TempBlob.CreateInStream(InStream);
+                    Viewer.SetContent('Generated XML', SbdXml);
 
-                    // 3. Déclenchement du téléchargement sur le poste utilisateur
-                    FileName := StrSubstNo('EReporting_%1.xml', Rec."Document No.");
-                    DownloadFromStream(InStream, 'Visualiser le XML E-Reporting', '', 'Fichiers XML (*.xml)|*.xml', FileName);
+                    Viewer.Run();
+                    // // 2. Écriture du texte dans un flux temporaire encodé en UTF-8
+                    // TempBlob.CreateOutStream(OutStream, TEXTENCODING::UTF8);
+                    // OutStream.WriteText(XmlContent);
+                    // TempBlob.CreateInStream(InStream);
+
+                    // // 3. Déclenchement du téléchargement sur le poste utilisateur
+                    // FileName := StrSubstNo('EReporting_%1.xml', Rec."Document No.");
+                    // DownloadFromStream(InStream, 'Visualiser le XML E-Reporting', '', 'Fichiers XML (*.xml)|*.xml', FileName);
                 end;
             }
             action("Send Now")

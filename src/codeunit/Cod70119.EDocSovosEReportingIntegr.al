@@ -10,7 +10,7 @@ codeunit 70119 "EDoc Sovos EReporting Integr."
 
     var
         Logger: Codeunit "EDoc Logger";
-        Builder: Codeunit "EDoc Sovos Invoice Builder";
+        SovosBuilder: Codeunit "EDoc Sovos EReporting Builder";
         SbdBuilder: Codeunit "SBD Builder";
         SovosClient: Codeunit "Sovos Client";
 
@@ -27,7 +27,7 @@ codeunit 70119 "EDoc Sovos EReporting Integr."
             'EDoc Sovos EReporting Integr.');
 
 
-        BodyXml := Builder.BuildInvoiceXml(EReportingDoc);
+        BodyXml := SovosBuilder.BuildEReportingXml(EReportingDoc);
         SbdXml := SbdBuilder.BuildEReportingSBD(BodyXml, EReportingDoc);
 
 

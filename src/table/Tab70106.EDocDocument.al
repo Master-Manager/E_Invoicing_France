@@ -62,6 +62,12 @@ table 70106 "EDoc Document"
         field(140; "Tax Currency Code"; Code[10])
         {
         }
+        field(141; "Original Invoice No."; Code[20])
+        {
+        }
+        field(142; "Original Invoice Date"; Date)
+        {
+        }
 
         //------------------------------------
         // References (BT-10, BT-13, BT-72)
@@ -250,7 +256,7 @@ table 70106 "EDoc Document"
 
         field(610; "Customization ID"; Text[250])
         {
-            InitValue = 'urn:cen.eu:en16931:2017#conformant#urn.cpro.gouv.fr:1p0:extended-ctc-fr';
+            InitValue = 'urn:cen.eu:en16931:2017#conformant#urn:cpro.gouv.fr:1p0:extended-ctc-fr';
         }
 
         field(620; "Profile ID"; Code[20])

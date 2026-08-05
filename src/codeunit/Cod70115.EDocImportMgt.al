@@ -22,6 +22,279 @@ codeunit 70115 "EDoc Import Mgt."
 
     end;
 
+    procedure CreateFromPostedCreditMemo(var EDoc: Record "EDoc Document")
+    var
+        SalesCrMemoHeader: Record "Sales Cr.Memo Header";
+    begin
+        if Page.RunModal(Page::"Posted Sales Credit Memos", SalesCrMemoHeader) <> Action::LookupOK then
+            exit;
+
+        ImportPostedSalesCreditMemo(
+            SalesCrMemoHeader."No.",
+            EDoc);
+    end;
+
+    procedure ImportPostedSalesCreditMemo(
+    CreditMemoNo: Code[20];
+    var EDoc: Record "EDoc Document")
+    var
+        SalesCrMemoHeader: Record "Sales Cr.Memo Header";
+        CompanyInfo: Record "Company Information";
+        Customer: Record Customer;
+    begin
+        SalesCrMemoHeader.Get(CreditMemoNo);
+
+        CompanyInfo.Get();
+        Customer.Get(SalesCrMemoHeader."Bill-to Customer No.");
+
+        EDoc.SetRange("Table ID", Database::"Sales Cr.Memo Header");
+        EDoc.SetRange("Document No.", SalesCrMemoHeader."No.");
+
+        if EDoc.FindFirst() then begin
+            EDoc.SetRange("Table ID");
+            EDoc.SetRange("Document No.");
+        end else begin
+            EDoc.SetRange("Table ID");
+            EDoc.SetRange("Document No.");
+
+            EDoc.Init();
+            EDoc."Table ID" := Database::"Sales Cr.Memo Header";
+            EDoc."Document No." := SalesCrMemoHeader."No.";
+            Edoc."Invoice Type Code" := '381';
+            EDoc.Insert(true);
+        end;
+
+        CopyCreditMemoHeader(
+            SalesCrMemoHeader,
+            CompanyInfo,
+            Customer,
+            EDoc);
+
+        CopyCreditMemoLines(
+            SalesCrMemoHeader,
+            EDoc);
+
+        EDoc.Modify(true);
+    end;
+
+    local procedure PopulateOriginalInvoice(
+        SalesCrMemoHeader: Record "Sales Cr.Memo Header";
+        var EDoc: Record "EDoc Document")
+    var
+        SalesInvHeader: Record "Sales Invoice Header";
+    begin
+        Clear(EDoc."Original Invoice No.");
+        Clear(EDoc."Original Invoice Date");
+
+        if SalesCrMemoHeader."Applies-to Doc. No." = '' then
+            exit;
+
+        if not SalesInvHeader.Get(SalesCrMemoHeader."Applies-to Doc. No.") then
+            exit;
+
+        EDoc."Original Invoice No." := SalesInvHeader."No.";
+        EDoc."Original Invoice Date" := SalesInvHeader."Posting Date";
+    end;
+
+    local procedure CopyCreditMemoHeader(
+        SalesCrMemoHeader: Record "Sales Cr.Memo Header";
+        CompanyInfo: Record "Company Information";
+        Customer: Record Customer;
+        var EDoc: Record "EDoc Document")
+    begin
+        //---------------------------------------
+        // Source
+        //---------------------------------------
+
+        EDoc."Document Record ID" := SalesCrMemoHeader.RecordId();
+        EDoc."Document No." := SalesCrMemoHeader."No.";
+        EDoc."Document Date" := SalesCrMemoHeader."Document Date";
+        EDoc."Posting Date" := SalesCrMemoHeader."Posting Date";
+        EDoc."Bill-to/Pay-to No." := SalesCrMemoHeader."Bill-to Customer No.";
+        EDoc."Bill-to/Pay-to Name" := SalesCrMemoHeader."Bill-to Name";
+        EDoc."Table ID" := Database::"Sales Cr.Memo Header";
+
+        //---------------------------------------
+        // General
+        //---------------------------------------
+
+        EDoc."Invoice No." := SalesCrMemoHeader."No.";
+        EDoc."Document Type" := EDoc."Document Type"::CreditMemo;
+        PopulateOriginalInvoice(
+    SalesCrMemoHeader,
+    EDoc);
+        EDoc.Status := EDoc.Status::Open;
+
+        EDoc."Issue Date" := SalesCrMemoHeader."Posting Date";
+        EDoc."Due Date" := SalesCrMemoHeader."Due Date";
+
+        //---------------------------------------
+        // Currency
+        //---------------------------------------
+
+        EDoc."Currency Code" := SalesCrMemoHeader."Currency Code";
+
+        if EDoc."Currency Code" = '' then
+            EDoc."Currency Code" := 'EUR';
+
+        EDoc."Tax Currency Code" := EDoc."Currency Code";
+
+        //---------------------------------------
+        // References
+        //---------------------------------------
+
+        EDoc."Buyer Reference" := SalesCrMemoHeader."Your Reference";
+
+        EDoc."Actual Delivery Date" := SalesCrMemoHeader."Shipment Date";
+
+        //---------------------------------------
+        // Payment
+        //---------------------------------------
+
+        EDoc."Payment Means Code" :=
+            ResolvePaymentMeansCode(SalesCrMemoHeader."Payment Method Code");
+
+        EDoc."Payment Terms Note" :=
+            ResolvePaymentTermsNote(SalesCrMemoHeader."Payment Terms Code");
+
+        //---------------------------------------
+        // Supplier
+        //---------------------------------------
+
+        EDoc."Supplier Name" := CompanyInfo.Name;
+        EDoc."Supplier VAT No." := CompanyInfo."VAT Registration No.";
+        EDoc."Supplier Address" := CompanyInfo.Address;
+        EDoc."Supplier City" := CompanyInfo.City;
+        EDoc."Supplier Post Code" := CompanyInfo."Post Code";
+        EDoc."Supplier Country" := CompanyInfo."Country/Region Code";
+        EDoc."Supplier SIREN" := CompanyInfo."EDoc SIREN";
+        EDoc."Supplier SIRET" := CompanyInfo."EDoc SIRET";
+        EDoc."Supplier Endpoint" := CompanyInfo."EDoc Endpoint ID";
+
+        //---------------------------------------
+        // Customer
+        //---------------------------------------
+
+        EDoc."Customer No." := Customer."No.";
+        EDoc."Customer Name" := Customer.Name;
+        EDoc."Customer VAT No." := Customer."VAT Registration No.";
+        EDoc."Customer Address" := Customer.Address;
+        EDoc."Customer City" := Customer.City;
+        EDoc."Customer Post Code" := Customer."Post Code";
+        EDoc."Customer Country" := Customer."Country/Region Code";
+        EDoc."Customer SIREN" := Customer."EDoc SIREN";
+        EDoc."Customer SIRET" := Customer."EDoc SIRET";
+        EDoc."Customer Endpoint" := Customer."EDoc Endpoint ID";
+
+        //---------------------------------------
+        // Totals
+        //---------------------------------------
+
+        SalesCrMemoHeader.CalcFields(Amount, "Amount Including VAT");
+
+        EDoc."Amount Excl. VAT" := Abs(SalesCrMemoHeader.Amount);
+
+        EDoc."VAT Amount" :=
+            Abs(SalesCrMemoHeader."Amount Including VAT" - SalesCrMemoHeader.Amount);
+
+        EDoc."Amount Incl. VAT" :=
+            Abs(SalesCrMemoHeader."Amount Including VAT");
+
+        EDoc."Payable Amount" :=
+            Abs(SalesCrMemoHeader."Amount Including VAT");
+    end;
+
+    local procedure CopyCreditMemoLines(
+        SalesCrMemoHeader: Record "Sales Cr.Memo Header";
+        EDoc: Record "EDoc Document")
+    var
+        SalesCrMemoLine: Record "Sales Cr.Memo Line";
+        EDocLine: Record "EDoc Document Line";
+        VATPostingSetup: Record "VAT Posting Setup";
+    begin
+        EDocLine.SetRange("Document Entry No.", EDoc."Entry No.");
+
+        if not EDocLine.IsEmpty then
+            EDocLine.DeleteAll();
+
+        SalesCrMemoLine.SetRange("Document No.", SalesCrMemoHeader."No.");
+        SalesCrMemoLine.SetFilter("No.", '<>%1', '');
+
+        if SalesCrMemoLine.FindSet() then
+            repeat
+
+                if (SalesCrMemoLine.Type = SalesCrMemoLine.Type::"G/L Account")
+                    and (SalesCrMemoLine."No." = '635810')
+                then begin
+
+                    EDoc."Allowance Amount" += Abs(SalesCrMemoLine."Line Amount");
+                    EDoc."Allowance Reason" := SalesCrMemoLine.Description;
+                    EDoc."Allowance VAT Category" := 'S';
+                    EDoc."Allowance VAT %" := SalesCrMemoLine."VAT %";
+
+                end else begin
+
+                    EDocLine.Init();
+
+                    EDocLine."Document Entry No." := EDoc."Entry No.";
+                    EDocLine."Line No." := SalesCrMemoLine."Line No.";
+
+                    EDocLine."Source Line No." := SalesCrMemoLine."Line No.";
+
+                    EDocLine.Type := SalesCrMemoLine.Type;
+                    EDocLine."No." := SalesCrMemoLine."No.";
+
+                    EDocLine.Description := SalesCrMemoLine.Description;
+                    EDocLine."Description 2" := SalesCrMemoLine."Description 2";
+
+                    EDocLine.Quantity := Abs(SalesCrMemoLine.Quantity);
+                    EDocLine."Unit of Measure" := SalesCrMemoLine."Unit of Measure Code";
+                    EDocLine."Unit Code" := 'C62';
+                    EDocLine."Base Quantity" := Abs(SalesCrMemoLine.Quantity);
+                    EDocLine."Price Base Quantity" := 1;
+
+                    EDocLine."Unit Price" := Abs(SalesCrMemoLine."Unit Price");
+                    EDocLine."Line Amount" := Abs(SalesCrMemoLine."Line Amount");
+                    EDocLine."Line Discount Amount" := Abs(SalesCrMemoLine."Line Discount Amount");
+
+                    EDocLine."VAT %" := SalesCrMemoLine."VAT %";
+
+                    EDocLine."Taxable Amount" := Abs(SalesCrMemoLine."Line Amount");
+
+                    EDocLine."Tax Amount" :=
+                        Abs(SalesCrMemoLine."Amount Including VAT" - SalesCrMemoLine."Line Amount");
+
+                    EDocLine."Amount Including VAT" :=
+                        Abs(SalesCrMemoLine."Amount Including VAT");
+
+                    VATPostingSetup.Get(
+                        SalesCrMemoLine."VAT Bus. Posting Group",
+                        SalesCrMemoLine."VAT Prod. Posting Group");
+
+                    EDocLine."VAT Category" :=
+                        VATPostingSetup."Sovos VAT Category";
+
+                    EDocLine."Tax Exemption Code" :=
+                        VATPostingSetup."Sovos Exemption Code";
+
+                    EDocLine."Tax Exemption Reason" :=
+                        VATPostingSetup."Sovos Exemption Reason";
+
+
+                    EDocLine."Order Line No." := 0;
+
+                    EDocLine."Buyer Item No." := '';
+                    EDocLine."Seller Item No." := SalesCrMemoLine."No.";
+                    EDocLine."Commodity Code" := '';
+                    EDocLine."Country of Origin" := '';
+                    EDocLine."Start Date" := SalesCrMemoHeader."Posting Date";
+                    EDocLine."End Date" := SalesCrMemoHeader."Posting Date";
+
+                    EDocLine.Insert();
+                end;
+
+            until SalesCrMemoLine.Next() = 0;
+    end;
 
     procedure ImportSalesInvoice(
         InvoiceNo: Code[20];
@@ -268,7 +541,7 @@ codeunit 70115 "EDoc Import Mgt."
             EDocLine.DeleteAll();
 
         SalesInvLine.SetRange("Document No.", SalesInvHeader."No.");
-        // SalesInvLine.SetFilter("No.", '<>%1', '');
+        SalesInvLine.SetFilter("No.", '<>%1', '');
 
         if SalesInvLine.FindSet() then
             repeat
