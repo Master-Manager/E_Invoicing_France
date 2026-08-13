@@ -2,8 +2,43 @@ codeunit 70115 "EDoc Import Mgt."
 {
     Access = Internal;
 
+    procedure CheckEdocumentVendorCustomer(
+        Customer: Record Customer;
+        CompanyInfo: Record "Company Information")
+    begin
+        // Vendor validation
+
+        if CompanyInfo."EDoc SIREN" = '' then
+            Error(
+                'E-Document validation failed.\The supplier SIREN is missing in Company Information.');
+
+        if CompanyInfo."EDoc SIRET" = '' then
+            Error(
+                'E-Document validation failed.\The supplier SIRET is missing in Company Information.');
+
+        if CompanyInfo."EDoc Endpoint ID" = '' then
+            Error(
+                'E-Document validation failed.\The supplier Endpoint ID is missing in Company Information.');
+
+        // Customer validation
+
+        if Customer."EDoc SIREN" = '' then
+            Error(
+                'E-Document validation failed for customer %1.\The customer SIREN is missing.',
+                Customer."No.");
+
+        if Customer."EDoc SIRET" = '' then
+            Error(
+                'E-Document validation failed for customer %1.\The customer SIRET is missing.',
+                Customer."No.");
+
+        if Customer."EDoc Endpoint ID" = '' then
+            Error(
+                'E-Document validation failed for customer %1.\The customer Endpoint ID is missing.',
+                Customer."No.");
+    end;
     //====================================================================
-    // E-INVOICING (Flux 2 - domestic B2B) - UNCHANGED
+    // E-INVOICING (Flux 2 - domestic B2B)
     //====================================================================
 
     procedure CreateFromPostedInvoice(var EDoc: Record "EDoc Document")
@@ -177,7 +212,7 @@ codeunit 70115 "EDoc Import Mgt."
 
         EDoc."Customer No." := Customer."No.";
         EDoc."Customer Name" := Customer.Name;
-        EDoc."Customer VAT No." := Customer."VAT Registration No.";
+        EDoc."Customer VAT No." := DelChr(Customer."VAT Registration No.", '=', ' ');
         EDoc."Customer Address" := Customer.Address;
         EDoc."Customer City" := Customer.City;
         EDoc."Customer Post Code" := Customer."Post Code";
@@ -451,7 +486,7 @@ codeunit 70115 "EDoc Import Mgt."
 
         EDoc."Customer No." := Customer."No.";
         EDoc."Customer Name" := Customer.Name;
-        EDoc."Customer VAT No." := Customer."VAT Registration No.";
+        EDoc."Customer VAT No." := DelChr(Customer."VAT Registration No.", '=', ' ');
         EDoc."Customer Address" := Customer.Address;
         EDoc."Customer City" := Customer.City;
         EDoc."Customer Post Code" := Customer."Post Code";

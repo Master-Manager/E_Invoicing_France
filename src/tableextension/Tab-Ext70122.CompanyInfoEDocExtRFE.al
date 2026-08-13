@@ -14,7 +14,7 @@ tableextension 70122 "Company Info EDoc Ext RFE" extends "Company Information"
             DataClassification = CustomerContent;
         }
 
-        field(70102; "EDoc Endpoint ID"; Code[50])
+        field(70102; "EDoc Endpoint ID"; Code[100])
         {
             Caption = 'EDoc Endpoint ID';
             DataClassification = CustomerContent;

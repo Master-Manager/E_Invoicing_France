@@ -48,6 +48,8 @@ codeunit 70116 "EDoc Sovos Document Mgt."
 
         ResponseText := SovosClient.GetDocumentNotifications(SovosDoc."Country Code", SovosDoc."Document Id");
 
+        SovosDoc.UpdateSovosStatus();
+
         ParseAndStoreNotifications(SovosDoc."Entry No.", ResponseText);
 
         SovosDoc."Last Notification Check At" := CurrentDateTime();
@@ -85,13 +87,30 @@ codeunit 70116 "EDoc Sovos Document Mgt."
         NotificationId: Text;
         NotificationJson: Text;
         SovosDocument: Record "EDoc Sovos Document";
+        NotificationEntryNo: Integer;
     begin
         NotificationId := GetJsonText(NotificationObj, 'notificationId');
 
-        // Idempotent: skip if we've already stored this exact notification.
+        // ---------------------------------------------------------
+        // Check if this exact notification already exists
+        // ---------------------------------------------------------
+        Notification.Reset();
+        Notification.SetRange("Sovos Document Entry No.", SovosDocEntryNo);
         Notification.SetRange("Notification Id", NotificationId);
-        if (NotificationId <> '') and not Notification.IsEmpty() then
+
+        if (NotificationId <> '') and Notification.FindFirst() then begin
+
+            // Notification already exists.
+            // Re-process its errors if it is an RE notification.
+            if Notification."SCI Response Code" = 'RE' then begin
+                InsertEDocErrors(
+                    GetEDocEntryNoFromSovosDocument(SovosDocEntryNo),
+                    Notification."Entry No.",
+                    NotificationObj);
+            end;
+
             exit;
+        end;
 
         MetadataObj := GetJsonObject(NotificationObj, 'metadata');
 
@@ -119,6 +138,208 @@ codeunit 70116 "EDoc Sovos Document Mgt."
         NotificationObj.WriteTo(NotificationJson);
         Notification.SetRawJson(NotificationJson);
         Notification.Modify(true);
+
+        // Parse errors for a newly inserted RE notification
+        if Notification."SCI Response Code" = 'RE' then begin
+            InsertEDocErrors(
+                GetEDocEntryNoFromSovosDocument(SovosDocEntryNo),
+                Notification."Entry No.",
+                NotificationObj);
+        end;
+
+    end;
+
+    local procedure GetEDocEntryNoFromSovosDocument(
+        SovosDocEntryNo: Integer): Integer
+    var
+        SovosDoc: Record "EDoc Sovos Document";
+    begin
+        if SovosDoc.Get(SovosDocEntryNo) then
+            exit(SovosDoc."EDoc Document Entry No.");
+
+        exit(0);
+    end;
+
+    local procedure InsertEDocErrors(
+     EDocEntryNo: Integer;
+     NotificationEntryNo: Integer;
+     NotificationObj: JsonObject)
+    var
+        Base64Convert: Codeunit "Base64 Convert";
+        EDocError: Record "EDoc Error";
+
+        ContentText: Text;
+        XmlText: Text;
+
+        XmlDoc: XmlDocument;
+        StatusNodes: XmlNodeList;
+        StatusReasonNodes: XmlNodeList;
+
+        StatusNode: XmlNode;
+        StatusReasonNode: XmlNode;
+
+        StatusElement: XmlElement;
+
+        StatusReasonCode: Text;
+        GeneralMessage: Text;
+        DetailedMessage: Text;
+
+        ReasonCount: Integer;
+    begin
+        ContentText :=
+            GetJsonText(
+                NotificationObj,
+                'content');
+
+        if ContentText = '' then
+            exit;
+
+        XmlText :=
+            Base64Convert.FromBase64(
+                ContentText,
+                TextEncoding::UTF8);
+
+        if XmlText = '' then
+            exit;
+
+        if not XmlDocument.ReadFrom(
+            XmlText,
+            XmlDoc)
+        then
+            exit;
+
+        if not XmlDoc.SelectNodes(
+            '//*[local-name()="DocumentResponse"]/*[local-name()="Response"]/*[local-name()="Status"]',
+            StatusNodes)
+        then
+            exit;
+
+        foreach StatusNode in StatusNodes do begin
+
+            if StatusNode.IsXmlElement() then begin
+
+                StatusElement :=
+                    StatusNode.AsXmlElement();
+
+                Clear(StatusReasonCode);
+                Clear(GeneralMessage);
+                Clear(DetailedMessage);
+                Clear(ReasonCount);
+
+                //-----------------------------------------
+                // StatusReasonCode
+                //-----------------------------------------
+
+                if StatusElement.SelectNodes(
+                    '*[local-name()="StatusReasonCode"]',
+                    StatusReasonNodes)
+                then begin
+
+                    foreach StatusReasonNode in StatusReasonNodes do begin
+
+                        if StatusReasonNode.IsXmlElement() then begin
+
+                            StatusReasonCode :=
+                                StatusReasonNode.AsXmlElement().InnerText();
+
+                            // We only need the first StatusReasonCode.
+                            ReasonCount := 0;
+                        end;
+                    end;
+                end;
+
+                //-----------------------------------------
+                // StatusReason
+                //-----------------------------------------
+
+                Clear(ReasonCount);
+
+                if StatusElement.SelectNodes(
+                    '*[local-name()="StatusReason"]',
+                    StatusReasonNodes)
+                then begin
+
+                    foreach StatusReasonNode in StatusReasonNodes do begin
+
+                        if StatusReasonNode.IsXmlElement() then begin
+
+                            ReasonCount += 1;
+
+                            if ReasonCount = 1 then begin
+
+                                // First StatusReason
+                                GeneralMessage :=
+                                    StatusReasonNode.AsXmlElement().InnerText();
+
+                            end else begin
+
+                                // Additional StatusReason
+                                if DetailedMessage <> '' then
+                                    DetailedMessage += '\';
+
+                                DetailedMessage :=
+                                    DetailedMessage +
+                                    StatusReasonNode.AsXmlElement().InnerText();
+                            end;
+                        end;
+                    end;
+                end;
+
+                //-----------------------------------------
+                // Create EDoc Error
+                //-----------------------------------------
+
+                if (StatusReasonCode <> '') or
+                   (GeneralMessage <> '') or
+                   (DetailedMessage <> '')
+                then begin
+
+                    // Check if this exact error already exists
+                    EDocError.Reset();
+                    EDocError.SetRange(
+                        "Notification Entry No.",
+                        NotificationEntryNo);
+
+                    EDocError.SetRange(
+                        "Error Code",
+                        StatusReasonCode);
+                    EDocError.SetRange("EDoc Entry No.", EDocEntryNo);
+                    if not EDocError.FindFirst() then begin
+
+                        // Start with a completely clean record
+                        Clear(EDocError);
+                        EDocError.Init();
+
+                        EDocError."EDoc Entry No." :=
+                            EDocEntryNo;
+                        EDocError."Notification Entry No." :=
+                            NotificationEntryNo;
+
+                        EDocError."Error Code" :=
+                            CopyStr(
+                                StatusReasonCode,
+                                1,
+                                MaxStrLen(EDocError."Error Code"));
+
+                        EDocError."General Message" :=
+                            CopyStr(
+                                GeneralMessage,
+                                1,
+                                MaxStrLen(EDocError."General Message"));
+
+                        EDocError."Error Message" :=
+                            CopyStr(
+                                DetailedMessage,
+                                1,
+                                MaxStrLen(EDocError."Error Message"));
+
+                        EDocError."Created At" :=
+                            CurrentDateTime();
+                        EDocError.Insert(true);
+                    end;
+                end;
+            end;
+        end;
     end;
 
     local procedure GetJsonObject(Parent: JsonObject; PropertyName: Text): JsonObject

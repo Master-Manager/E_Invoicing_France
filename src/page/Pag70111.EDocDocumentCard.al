@@ -52,12 +52,12 @@ page 70111 "EDoc Document Card"
                 field("Document Type"; Rec."Document Type")
                 {
                     ApplicationArea = All;
-                    // editable = false;
+                    editable = false;
                 }
                 field("flow type"; Rec."flow type")
                 {
                     ApplicationArea = All;
-                    //  editable = false;
+                    editable = false;
                 }
 
                 field("Invoice No."; Rec."Invoice No.")
@@ -79,12 +79,6 @@ page 70111 "EDoc Document Card"
                 {
                     Editable = false;
                     Caption = 'Original Invoice Date (Avoirs)';
-                }
-
-                field("Source Document No."; Rec."Document No.")
-                {
-                    ApplicationArea = All;
-                    Editable = false;
                 }
 
                 field("Bill-to/Pay-to No."; Rec."Bill-to/Pay-to No.")
@@ -282,6 +276,13 @@ page 70111 "EDoc Document Card"
             {
                 ApplicationArea = All;
                 SubPageLink = "Document Entry No." = field("Entry No.");
+            }
+            part(Errors; "EDoc Errors Sub.")
+            {
+                Caption = 'Sovos Errors';
+                ApplicationArea = All;
+
+                SubPageLink = "EDoc Entry No." = field("Entry No.");
             }
         }
     }
