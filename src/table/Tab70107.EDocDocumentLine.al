@@ -15,7 +15,22 @@ table 70107 "EDoc Document Line"
         {
             Caption = 'Line No.';
         }
+        field(3; "Document No."; Code[20])
+        {
+            Caption = 'Document No.';
+        }
 
+        field(4; "VAT Bus. Posting Group"; Code[20])
+        {
+            Caption = 'VAT Bus. Posting Group';
+            TableRelation = "VAT Business Posting Group";
+        }
+
+        field(5; "VAT Prod. Posting Group"; Code[20])
+        {
+            Caption = 'VAT Prod. Posting Group';
+            TableRelation = "VAT Product Posting Group";
+        }
         //------------------------------------
         // Source
         //------------------------------------

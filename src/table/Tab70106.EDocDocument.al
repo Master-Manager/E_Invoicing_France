@@ -10,6 +10,10 @@ table 70106 "EDoc Document"
             Caption = 'Entry No.';
             AutoIncrement = true;
         }
+        field(2; "Code"; Code[20])
+        {
+            Caption = 'Code';
+        }
 
         field(10; "Document Type"; Enum "EDoc Document Type")
         {
@@ -33,7 +37,10 @@ table 70106 "EDoc Document"
         {
             Caption = 'Status';
         }
-
+        field(41; "Status Code"; Code[10])
+        {
+            Caption = 'Status Code'; // e.g., '212' for ENCAISSEE
+        }
         field(50; "Service Code"; Code[20])
         {
             TableRelation = "EDoc Service";
@@ -108,6 +115,9 @@ table 70106 "EDoc Document"
         //------------------------------------
         // Supplier
         //------------------------------------
+        field(195; "Supplier No."; Code[20])
+        {
+        }
 
         field(200; "Supplier Name"; Text[100])
         {
@@ -223,6 +233,29 @@ table 70106 "EDoc Document"
         field(530; "Payable Amount"; Decimal)
         {
             DecimalPlaces = 2 : 2;
+        }
+        field(535; "Amount Paid"; Decimal)
+        {
+            Caption = 'Amount Paid';
+            DecimalPlaces = 2 : 2;
+
+            trigger OnValidate()
+            begin
+                "Amount Paid Incl. VAT" := "Amount Paid";
+                "Collected Amount" := "Amount Paid";
+            end;
+        }
+
+        field(536; "Amount Paid Incl. VAT"; Decimal)
+        {
+            Caption = 'Amount Paid Incl. VAT';
+            DecimalPlaces = 2 : 2;
+
+            trigger OnValidate()
+            begin
+                "Amount Paid" := "Amount Paid Incl. VAT";
+                "Collected Amount" := "Amount Paid Incl. VAT";
+            end;
         }
         field(540; "Allowance Amount"; Decimal)
         {
@@ -424,6 +457,28 @@ table 70106 "EDoc Document"
         field(914; "Collected Amount"; Decimal)
         {
         }
+        field(915; "Status Reason Code"; Code[20])
+        {
+            Caption = 'Status Reason Code';
+            DataClassification = CustomerContent;
+        }
+        field(916; "Status Reason Text"; Text[250])
+        {
+            Caption = 'Status Reason Text';
+            DataClassification = CustomerContent;
+        }
+        field(917; "Process Condition Code"; Code[10])
+        {
+            Caption = 'Process Condition Code';
+            DataClassification = CustomerContent;
+        }
+        field(70102; "Document Direction"; Enum "EDoc Document Direction")
+        {
+            Caption = 'Document Direction';
+            DataClassification = CustomerContent;
+            Description = 'Distingue les flux sortants (Ventes) et entrants (Achats) pour l''E-Invoicing / E-Reporting.';
+            Editable = False;
+        }
     }
 
     keys
@@ -434,6 +489,9 @@ table 70106 "EDoc Document"
         }
 
         key(Document; "Invoice No.")
+        {
+        }
+        key(DocCodeKey; "Code")
         {
         }
 

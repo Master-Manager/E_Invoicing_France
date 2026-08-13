@@ -1,4 +1,4 @@
-codeunit 70124 "EDoc Sales Posting Subscriber"
+codeunit 70125 "EDoc Sales Posting Subscriber"
 {
     Access = Internal;
 

@@ -10,8 +10,8 @@ codeunit 70119 "EDoc Sovos EReporting Integr."
 
     var
         Logger: Codeunit "EDoc Logger";
-        SovosBuilder: Codeunit "EDoc Sovos EReporting Builder";
-        SbdBuilder: Codeunit "SBD Builder";
+        Builder: Codeunit "EDoc ER Flow 10.1 Builder";
+        SbdBuilder: Codeunit "EDoc ER SBD Builder";
         SovosClient: Codeunit "Sovos Client";
 
     procedure SendEReportingEntry(var EReportingDoc: Record "EDoc Document")
@@ -27,10 +27,17 @@ codeunit 70119 "EDoc Sovos EReporting Integr."
             'EDoc Sovos EReporting Integr.');
 
 
-        BodyXml := SovosBuilder.BuildEReportingXml(EReportingDoc);
-        SbdXml := SbdBuilder.BuildEReportingSBD(BodyXml, EReportingDoc);
+        BodyXml := Builder.BuildFlow101Xml(EReportingDoc, EReportingDoc."Service Code");
 
+        // 2
+        SbdXml := SbdBuilder.BuildEReportingSBD(
+            BodyXml,
+            EReportingDoc."Posting Date",
+            EReportingDoc."Posting Date",
+            EReportingDoc."Service Code"
+        );
 
+        // 
         ResponseText := SovosClient.SendEReporting(SbdXml, SovosDocumentId);
 
 

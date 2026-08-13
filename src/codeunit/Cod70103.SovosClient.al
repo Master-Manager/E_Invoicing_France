@@ -43,6 +43,13 @@ codeunit 70103 "Sovos Client"
         exit(ResponseText);
     end;
 
+    local procedure GetService(ServiceCode: Code[20]; var Service: Record "EDoc Service")
+    begin
+        if (ServiceCode <> '') and Service.Get(ServiceCode) then
+            exit;
+        SetupMgt.GetDefaultService(Service);
+    end;
+
     procedure GetStatus(RelativeUrl: Text): Text
     var
         Service: Record "EDoc Service";

@@ -59,6 +59,10 @@ page 70111 "EDoc Document Card"
                     ApplicationArea = All;
                     editable = false;
                 }
+                field("Document Direction"; Rec."Document Direction")
+                {
+                    ApplicationArea = All;
+                }
 
                 field("Invoice No."; Rec."Invoice No.")
                 {
@@ -297,7 +301,7 @@ page 70111 "EDoc Document Card"
 
                 action(ImportPostedInvoice)
                 {
-                    Caption = 'Import Posted Invoice';
+                    Caption = 'Import Posted Sales Invoice';
                     Image = GetSourceDoc;
 
                     trigger OnAction()
@@ -306,6 +310,26 @@ page 70111 "EDoc Document Card"
                         NewEDoc: Record "EDoc Document";
                     begin
                         ImportMgt.CreateFromPostedInvoice(NewEDoc);
+
+                        if NewEDoc."Entry No." <> 0 then begin
+                            Rec := NewEDoc;
+                            if Rec.Find() then
+                                CurrPage.Update(false);
+                        end;
+                    end;
+                }
+                action(ImportPostedPurchaseInvoice)
+                {
+                    Caption = 'Import Posted Purchase Invoice';
+                    Image = GetSourceDoc;
+
+                    trigger OnAction()
+                    var
+                        ImportMgt: Codeunit "EDoc Import Mgt.";
+                        NewEDoc: Record "EDoc Document";
+                    begin
+                        // Assurez-vous que la méthode correspondante existe dans votre Codeunit d'importation
+                        ImportMgt.CreateFromPostedPurchaseInvoice(NewEDoc);
 
                         if NewEDoc."Entry No." <> 0 then begin
                             Rec := NewEDoc;
@@ -334,6 +358,28 @@ page 70111 "EDoc Document Card"
                         end;
                     end;
                 }
+                /*  action(GenerateXML)
+                  {
+                      ApplicationArea = All;
+                      Caption = 'Generate XML';
+                      Image = XMLFile;
+
+                      trigger OnAction()
+                      var
+                          Builder: Codeunit "EDoc Sovos Invoice Builder";
+                          SBDBuilder: Codeunit "SBD Builder";
+                          SBD: Text;
+                          Xml: Text;
+                      begin
+                          Xml := Builder.BuildInvoiceXml(Rec);
+
+                          SBD := SBDBuilder.BuildSBD(Xml, Rec);
+
+                          Message(
+                              'XML generated successfully.\Length: %1 characters.',
+                              StrLen(SBD));
+                      end;
+                  }*/
                 action(GenerateXML)
                 {
                     ApplicationArea = All;
@@ -342,14 +388,9 @@ page 70111 "EDoc Document Card"
 
                     trigger OnAction()
                     var
-                        Builder: Codeunit "EDoc Sovos Invoice Builder";
-                        SBDBuilder: Codeunit "SBD Builder";
                         SBD: Text;
-                        Xml: Text;
                     begin
-                        Xml := Builder.BuildInvoiceXml(Rec);
-
-                        SBD := SBDBuilder.BuildSBD(Xml, Rec);
+                        SBD := GetGeneratedXmlContent();
 
                         Message(
                             'XML generated successfully.\Length: %1 characters.',
@@ -365,16 +406,11 @@ page 70111 "EDoc Document Card"
 
                     trigger OnAction()
                     var
-                        Builder: Codeunit "EDoc Sovos Invoice Builder";
-                        SBDBuilder: Codeunit "SBD Builder";
                         Viewer: Page "JSON Viewer";
-                        Xml: Text;
+                        XmlContent: Text;
                     begin
-                        Xml := Builder.BuildInvoiceXml(Rec);
-                        Viewer.SetContent(
-                            'Generated XML',
-                            SBDBuilder.BuildSBD(Xml, Rec));
-
+                        XmlContent := GetGeneratedXmlContent();
+                        Viewer.SetContent('Generated XML', XmlContent);
                         Viewer.Run();
                     end;
                 }
@@ -387,25 +423,20 @@ page 70111 "EDoc Document Card"
 
                     trigger OnAction()
                     var
-                        Builder: Codeunit "EDoc Sovos Invoice Builder";
-                        SBDBuilder: Codeunit "SBD Builder";
                         Sovos: Codeunit "Sovos Client";
                         SovosDocMgt: Codeunit "EDoc Sovos Document Mgt.";
-
-                        Xml: Text;
-                        SBD: Text;
+                        Payload: Text;
                         DocumentId: Text;
                         Response: Text;
                     begin
+                        // Rec.ValidateFlowTypeRules();
+                        Payload := GetGeneratedXmlContent();
+                        IF rec."Document Type" = rec."Document Type"::Invoice Then
+                            Response := Sovos.SendInvoice(Payload, DocumentId)
 
-                        Xml := Builder.BuildInvoiceXml(Rec);
+                        ELSE
+                            Response := Sovos.SendEReporting(Payload, DocumentId);
 
-                        SBD := SBDBuilder.BuildSBD(Xml, Rec);
-
-                        Response :=
-                            Sovos.SendInvoice(
-                                SBD,
-                                DocumentId);
 
                         if DocumentId <> '' then begin
                             Rec."Sovos Document Id" := DocumentId;
@@ -413,12 +444,11 @@ page 70111 "EDoc Document Card"
                         end;
 
                         Rec.Status := Rec.Status::Sent;
-
                         Rec.Modify(true);
 
                         Message(Response);
-
                     end;
+
                 }
 
                 action(CheckStatus)
@@ -465,5 +495,28 @@ page 70111 "EDoc Document Card"
             }
         }
     }
+    procedure GetGeneratedXmlContent(): Text
+    var
+        EDocService: Record "EDoc Service";
+        SetupMgt: Codeunit "EDoc Setup Mgt.";
+        Builder: Codeunit "EDoc Sovos Invoice Builder";
+        SBDBuilder: Codeunit "SBD Builder";
+        SalesBuilder: Codeunit "EDoc Sovos EReporting Builder";
+        PurchaseBuilder: Codeunit "EDoc ER Flow 10.1 Pur Builder";
+        ServiceCode: Code[20];
+        Xml: Text;
+    begin
+        SetupMgt.GetDefaultService(EDocService);
+        ServiceCode := EDocService.Code;
 
+        if Rec."Document Type" = Rec."Document Type"::"E-Reporting" then begin
+            if Rec."Document Direction" = Rec."Document Direction"::Inbound then
+                exit(PurchaseBuilder.BuildPurchaseFlow101Xml(Rec, ServiceCode))
+            else
+                exit(SalesBuilder.BuildFlow101Xml(Rec, ServiceCode));
+        end else begin
+            Xml := Builder.BuildInvoiceXml(Rec);
+            exit(SBDBuilder.BuildSBD(Xml, Rec));
+        end;
+    end;
 }

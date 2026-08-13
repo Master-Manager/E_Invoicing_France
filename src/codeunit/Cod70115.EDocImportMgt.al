@@ -932,4 +932,130 @@ codeunit 70115 "EDoc Import Mgt."
         VATRate := 0;
         VATCategory := '';
     end;
+
+    procedure CreateFromPostedPurchaseInvoice(var EDocDocument: Record "EDoc Document")
+    var
+        PurchInvHeader: Record "Purch. Inv. Header";
+        PurchInvLine: Record "Purch. Inv. Line";
+        EDocLine: Record "EDoc Document Line";
+        PurchInvList: Page "Posted Purchase Invoices";
+        NextEntryNo: Integer;
+        NextLineNo: Integer;
+        Vendor: Record "Vendor";
+        CompanyInfo: Record "Company Information";
+    begin
+        // 1. Appliquer un filtre pour afficher uniquement les factures internationales (Pays <> 'FR')
+        PurchInvHeader.RESET;
+        PurchInvHeader.SetFilter("Pay-to Country/Region Code", '<>%1', 'FR');
+        PurchInvList.SetTableView(PurchInvHeader);
+
+        // 2. Ouvrir la liste filtrée pour sélection
+        CLEAR(PurchInvList);
+        PurchInvList.LookupMode(true);
+        PurchInvList.SetTableView(PurchInvHeader);
+        if PurchInvList.RUNMODAL() = ACTION::LookupOK then begin
+            PurchInvList.GetRecord(PurchInvHeader);
+            if (PurchInvHeader."Pay-to Country/Region Code" = 'FR') THEN
+                Error('Cette facture ne peut pas être importée car le pays du fournisseur est la France. Seuls les fournisseurs internationaux sont autorisés.');
+            // 3. Vérifier si le document existe déjà dans la table EDoc
+            EDocDocument.SetRange("Table ID", Database::"Purch. Inv. Header");
+            EDocDocument.SetRange("Document No.", PurchInvHeader."No.");
+            if EDocDocument.FindFirst() then begin
+                Message('This posted purchase invoice has already been imported.');
+                //exit;
+            end;
+
+            // 4. Déterminer le prochain "Entry No."
+            EDocDocument.Reset();
+            if EDocDocument.FindLast() then
+                NextEntryNo := EDocDocument."Entry No." + 1
+            else
+                NextEntryNo := 1;
+
+            // 5. Remplir l'en-tête E-Doc en mode Inbound et Flow Type International
+            EDocDocument.Init();
+            EDocDocument."Entry No." := NextEntryNo;
+            EDocDocument."Document No." := PurchInvHeader."No.";
+            EDocDocument."Invoice No." := PurchInvHeader."No.";
+            EDocDocument."Table ID" := Database::"Purch. Inv. Header";
+            EDocDocument."Table Name" := 'Purch. Inv. Header';
+            EDocDocument."Document Record ID" := PurchInvHeader.RecordId;
+            EDocDocument."Document Direction" := EDocDocument."Document Direction"::Inbound;
+            EDocDocument."Document Type" := EDocDocument."Document Type"::"E-Reporting";
+            EDocDocument."Flow Type" := EDocDocument."Flow Type"::International;
+            EDocDocument.Status := EDocDocument.Status::Pending;
+
+            // Dates et références
+            EDocDocument."Document Date" := PurchInvHeader."Document Date";
+            EDocDocument."Issue Date" := PurchInvHeader."Posting Date";
+            EDocDocument."Due Date" := PurchInvHeader."Due Date";
+            EDocDocument."Currency Code" := PurchInvHeader."Currency Code";
+
+            CompanyInfo.GET;
+
+            EDocDocument."Customer Name" := CompanyInfo.Name;
+            EDocDocument."Customer VAT No." := CompanyInfo."VAT Registration No.";
+            EDocDocument."Customer Address" := CompanyInfo.Address;
+            EDocDocument."Customer City" := CompanyInfo.City;
+            EDocDocument."Customer Post Code" := CompanyInfo."Post Code";
+            EDocDocument."Customer Country" := CompanyInfo."Country/Region Code";
+
+            EDocDocument."Customer SIREN" := CompanyInfo."EDoc SIREN";
+            EDocDocument."Customer SIRET" := CompanyInfo."EDoc SIRET";
+            EDocDocument."Customer Endpoint" := CompanyInfo."EDoc Endpoint ID";
+            Vendor.RESET;
+            Vendor.SETRANGE("No.", PurchInvHeader."Pay-to Vendor No.");
+            IF Vendor.FindFirst() THEN BEGIN
+                EDocDocument."Supplier No." := Vendor."No.";
+                EDocDocument."Supplier Name" := Vendor.Name;
+                EDocDocument."Supplier VAT No." := Vendor."VAT Registration No.";
+                EDocDocument."Supplier Address" := Vendor.Address;
+                EDocDocument."Supplier City" := Vendor.City;
+                EDocDocument."Supplier Post Code" := Vendor."Post Code";
+                EDocDocument."Supplier Country" := Vendor."Country/Region Code";
+                EDocDocument."Supplier SIREN" := Vendor."EDoc SIREN";
+                EDocDocument."Supplier SIRET" := Vendor."EDoc SIRET";
+                EDocDocument."Supplier Endpoint" := Vendor."EDoc Endpoint ID";
+            END;
+            // Fournisseur (Supplier)
+            EDocDocument."Bill-to/Pay-to No." := PurchInvHeader."Pay-to Vendor No.";
+            EDocDocument."Bill-to/Pay-to Name" := PurchInvHeader."Pay-to Name";
+            EDocDocument."Supplier Name" := PurchInvHeader."Buy-from Vendor Name";
+            //EDocDocument."Supplier VAT No." := PurchInvHeader."VAT Registration No.";
+
+            // Champs personnalisés
+            EDocDocument."Invoice Type Code" := PurchInvHeader."Invoice Type Code";
+            EDocDocument."Tax Due Date Type Code" := PurchInvHeader."Tax Due Date Type Code";
+            EDocDocument."Profile ID" := PurchInvHeader."E-Rep Profile ID";
+
+            // Calculs des montants
+            PurchInvHeader.CalcFields("Amount", "Amount Including VAT");
+            EDocDocument."Amount Excl. VAT" := PurchInvHeader.Amount;
+            EDocDocument."Amount Incl. VAT" := PurchInvHeader."Amount Including VAT";
+            EDocDocument."VAT Amount" := PurchInvHeader."Amount Including VAT" - PurchInvHeader.Amount;
+            EDocDocument."Payable Amount" := PurchInvHeader."Amount Including VAT";
+            EDocDocument."Created At" := CurrentDateTime();
+            EDocDocument.Insert(true);
+
+            // 6. Importer les lignes de la facture d'achat
+            PurchInvLine.SetRange("Document No.", PurchInvHeader."No.");
+            if PurchInvLine.FindSet() then begin
+                NextLineNo := 10000;
+                repeat
+                    EDocLine.Init();
+                    EDocLine."Document Entry No." := EDocDocument."Entry No.";
+                    EDocLine."Line No." := NextLineNo;
+                    EDocLine."No." := PurchInvLine."No.";
+                    EDocLine.Description := PurchInvLine.Description;
+                    EDocLine.Quantity := PurchInvLine.Quantity;
+                    EDocLine."Unit Price" := PurchInvLine."Unit Price (LCY)";
+                    EDocLine."Line Amount" := PurchInvLine.Amount;
+                    EDocLine."Amount Including VAT" := PurchInvLine."Amount Including VAT";
+                    EDocLine.Insert(true);
+
+                    NextLineNo += 10000;
+                until PurchInvLine.Next() = 0;
+            end;
+        end;
+    end;
 }
